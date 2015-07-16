@@ -4,10 +4,37 @@ jobs:
   public: true
   serial: true
   plan:
-  - get: citytest-concourse
+  - get: app-version
+    resource: resource-app-version
+    params:
+      bump: patch
+  - task: display-version
+    config:
+      platform: linux
+      image: docker:///ubuntu#14.04
+      inputs:
+      - name: app-version
+      run:
+        path: cat
+        args: [app-version/number]
   - get: citytest
     trigger: true
-  - { task: build-gradle, file: citytest-concourse/task_gradle_build.yml }
+
+  - task: build-citytest
+    config:
+      platform: linux
+      image: docker:///bamdad/jdk8-gradle
+      inputs:
+      - name: app-version
+      inputs:
+      - name: citytest
+        path: .
+      run:
+        path: ./task_gradle_build.sh
+        args: [app-version/number]
+      params: {a: b}
+
+  - { task: build-gradle, file: citytest/task_gradle_build.yml }	
   - put: build_artifact
     params:
       from: build-gradle/build/libs/cities-0.0.1-SNAPSHOT.jar
@@ -29,11 +56,6 @@ jobs:
       path: build_artifact/cities-0.0.1.jar
 
 resources:
-- name: citytest-concourse
-  type: git
-  source:
-    uri: https://github.com/rgadhia/citytest-concourse
-
 - name: citytest
   type: git
   source:
@@ -66,3 +88,14 @@ resources:
     organization: Northwest
     space: rgadhia
     skip_cert_check: false
+    current_app_name: citytest
+
+- name: resource-app-version
+  type: semver
+  source:
+    bucket: {{aws-bucket}}
+    key: app-version
+    initial_version: 1.0.0
+    access_key_id: {{aws-access-key-id}}
+    secret_access_key: {{aws-secret-access-key}}
+    region_name: us-east-1    
