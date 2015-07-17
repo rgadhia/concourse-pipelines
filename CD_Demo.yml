@@ -4,43 +4,32 @@ jobs:
   public: true
   serial: true
   plan:
+  - get: citytest
+    trigger: true
   - get: app-version
     resource: resource-app-version
     params:
       bump: patch
-  - task: display-version
-    config:
-      platform: linux
-      image: docker:///ubuntu#14.04
-      inputs:
-      - name: app-version
-      run:
-        path: cat
-        args: [app-version/number]
-  - get: citytest
-    trigger: true
 
   - task: build-citytest
     config:
       platform: linux
       image: docker:///bamdad/jdk8-gradle
       inputs:
-      - name: app-version
-      inputs:
-      - name: citytest
-        path: .
-      run:
-        path: ./task_gradle_build.sh
-        args: [app-version/number]
-      params: {a: b}
-
-  - { task: build-gradle, file: citytest/task_gradle_build.yml }	
+      - {name: app-version}
+      - {name: citytest, path: . }
+      run: {path: ./task_gradle_build.sh}
   - put: build_artifact
     params:
-      from: build-gradle/build/libs/cities-0.0.1-SNAPSHOT.jar
+      from: build-citytest/build/libs/cities-0.0.1-SNAPSHOT.jar
+      to: build-artifact/test
+  - put: app-version
+    resource: resource-app-version
+    params:
+      file: app-version/number
   - put: build_manifest
     params:
-      from: build-gradle/manifest.yml
+      from: build-citytest/manifest.yml
 
 - name: CD-Deploy
   plan:
@@ -93,9 +82,9 @@ resources:
 - name: resource-app-version
   type: semver
   source:
-    bucket: {{aws-bucket}}
-    key: app-version
+    bucket: rgadhia-app-version
+    key: build_version
     initial_version: 1.0.0
     access_key_id: {{aws-access-key-id}}
     secret_access_key: {{aws-secret-access-key}}
-    region_name: us-east-1    
+    region_name: us-west-2    
